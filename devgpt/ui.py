@@ -1,12 +1,6 @@
 import subprocess
-import time
 import uuid
-import openai
-import config
-import re
 import os
-import json
-from typing import List, Dict, Union
 import tkinter as tk
 from tkinter import ttk
 from datetime import datetime
@@ -35,7 +29,8 @@ class GPT4UI:
         query_options = [
             "create a python doodle jump game using pygame",
             "create a python script print 10 + 10",
-            "create an application that tracks all the starlink satellites in the sky and plots them on a globe",
+            "create an application that tracks all the starlink satellites in "
+            "the sky and plots them on a globe",
             "Custom"
         ]
         query_dropdown = ttk.OptionMenu(
@@ -54,7 +49,8 @@ class GPT4UI:
         self.message_display = tk.Text(
             mainframe, wrap=tk.WORD, width=80, height=20
         )
-        self.message_display.grid(column=0, row=3, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.message_display.grid(column=0, row=3, columnspan=2,
+                                  sticky=(tk.W, tk.E, tk.N, tk.S))
 
         self.projects_var = tk.StringVar()
         self.projects_var.set("Select a Project")
@@ -84,21 +80,22 @@ class GPT4UI:
             user_query = self.query_entry.get()
         else:
             user_query = selected_query
-            
+
         self.query_entry.delete(0, tk.END)
         self.gpt4.add_message(user_query)
-            
+
         if self.session['folder_name'] is None:
             folder_name = self.gpt4.extract_filename_from_query(user_query)
-            
+
             query_folder = f"{self.gpt4.output_folder}/{folder_name}"
-            
+
             os.makedirs(query_folder, exist_ok=True)
-            
+
             self.session['folder_name'] = folder_name
         else:
-            query_folder = f"{self.gpt4.output_folder}/{self.session['folder_name']}"
-            
+            query_folder = (
+                    f"{self.gpt4.output_folder}/{self.session['folder_name']}"
+                )
 
         output_filename = f"{query_folder}/code.py"
         self.gpt4.generate_and_save_response(output_filename)
@@ -127,22 +124,24 @@ class GPT4UI:
         project_name = self.projects_var.get()
         if project_name == "Select a Project":
             return
-        
+
         self.gpt4.save_sessions_to_file()
         self.gpt4.load_sessions_from_file()
 
-        file_path = os.path.join(self.gpt4.output_folder, project_name, "code.py")
+        file_path = os.path.join(self.gpt4.output_folder, project_name,
+                                 "code.py")
         if not os.path.isfile(file_path):
             tk.messagebox.showerror(
                 "Error",
-                f"Cannot find 'code.py' in the selected project folder: {project_name}",
+                "Cannot find 'code.py' in the selected project folder: "
+                f"{project_name}",
             )
             return
-        
-        
+
         self.update_message_display()
 
-        result = subprocess.run(["python", file_path], capture_output=True, text=True)
+        result = subprocess.run(["python", file_path], capture_output=True,
+                                text=True)
         output = result.stdout.strip()
         error = result.stderr.strip()
 
@@ -156,7 +155,6 @@ class GPT4UI:
                 tk.END, f"Output from running the code:\n{output}\n"
             )
 
-    def run(self):   
-        self.message_display.config(font=("TkDefaultFont", 10), spacing1=5)         
+    def run(self):
+        self.message_display.config(font=("TkDefaultFont", 10), spacing1=5)
         self.root.mainloop()
-        

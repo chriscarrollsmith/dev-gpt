@@ -1,54 +1,23 @@
-import pandas as pd
-import geopandas as gpd
-from mapboxgl.utils import create_color_stops
-from mapboxgl.viz import GraduatedCircleViz
-import requests
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
+from IPython.display import IFrame
+def visualize_neighborhood_data(data):
+    # Convert to DataFrame for easier processing
+    df = pd.DataFrame(data).T.reset_index().rename(columns={"index": "Neighborhood"})
 
-# Step 1: Define your criteria
-criteria = {
-    'proximity_to_public_transportation': 0.3,
-    'proximity_to_schools': 0.2,
-    'proximity_to_parks': 0.3,
-    'crime_rate': 0.1,
-    'access_to_healthcare': 0.1,
-}
+    # Create GeoJSON data
+    geojson_data = df_to_geojson(df, properties=["Unique_Property"], lat="Latitude", lon="Longitude")
 
-# Step 2: Gather data
-# Load property data from provided URL
-url = "http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2022.csv"
-property_data = pd.read_csv('data/house-data.csv')
+    # Create a circle map visualization
+    viz = CircleViz(
+        geojson_data,
+        access_token=MAPBOX_API_KEY,
+        color_property="Unique_Property",
+        color_stops=create_color_stops([0, 1, 2], colors=["red", "blue", "green"]),
+        radius=5,
+        center=(-96, 37),
+        zoom=3,
+        style="mapbox://styles/mapbox/dark-v10",
+    )
 
-# Preprocess the data
-property_data = property_data.iloc[:, [2, 9, 10]]
-property_data.columns = ['price', 'longitude', 'latitude']
-property_data = property_data[property_data['longitude'].apply(lambda x: isinstance(x, (int, float)))]
-property_data = property_data[property_data['latitude'].apply(lambda x: isinstance(x, (int, float)))]
-property_data = property_data.dropna()
-property_data = property_data.groupby(['latitude', 'longitude']).mean().reset_index()
-
-# Convert to GeoDataFrame
-property_gdf = gpd.GeoDataFrame(
-    property_data, geometry=gpd.points_from_xy(property_data.longitude, property_data.latitude)
-)
-
-# Visualize the property data on a Mapbox map
-mapbox_token = "pk.eyJ1Ijoic3BpbmsiLCJhIjoiY2xlN2hxZW00MDBvZjNwc2NyMmNzZXc0cCJ9.V47jC5udtxn8P13fPNeXOA"
-
-color_stops = create_color_stops([0, 0.25, 0.5, 0.75, 1], colors='YlOrRd')
-
-property_gdf["scaled_price"] = StandardScaler().fit_transform(property_gdf['price'].values.reshape(-1, 1))
-
-viz = GraduatedCircleViz(
-    property_gdf,
-    access_token=mapbox_token,
-    weight_property="scaled_price",
-    weight_stops=create_numeric_stops([0, 0.25, 0.5, 0.75, 1], 0.1),
-    color_property="scaled_price",
-    color_stops=color_stops,
-    center=(-0.1275, 51.5072),
-    zoom=5
-)
-
-viz.show()
+    # Show the map
+    viz.create_html()
+    display(IFrame(viz.srcdoc, width="100%", height="600"))

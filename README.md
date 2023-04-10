@@ -39,16 +39,12 @@ Enter a new message (or type 'quit' to exit): Write a Python function to find th
 
 3. GPT-4 generates a response with the code snippet and provides instructions on how to run the code. The response will be in the following format:
 
-```
 ```bash
 (required dependencies)
 ```
 
 ```python
 (Python code)
-```
-
-Provide instructions on how to run the code in the response.
 ```
 
 4. The app saves generated code to a file and runs the code. Any output is displayed in the CLI.

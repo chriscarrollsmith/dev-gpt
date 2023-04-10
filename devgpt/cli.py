@@ -1,31 +1,23 @@
 import argparse
-import json
-import subprocess
-import time
-import uuid
-import openai
-import re
-import os
-from typing import List, Dict
-from datetime import datetime
-
-
 from . import GPT4
 
+
 # Insert the Session and GPT4 classes here
-
-
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="GPT-4 command line app")
-    parser.add_argument("--api_key", type=str, help="OpenAI API key", required=True)
+    parser.add_argument("--api_key", type=str, help="OpenAI API key",
+                        required=True)
     args = parser.parse_args()
 
     # Create a GPT4 instance
     gpt4 = GPT4(args.api_key)
 
     # Update the initial system message to request code in the specified format
-    gpt4.add_message("Act as a data engineer and provide code in the following format: \n\n```bash\n(required dependencies)\n```\n\n```python\n(Python code)\n```\n\nProvide instructions on how to run the code in the response.", role="system")
+    gpt4.add_message("Act as a data engineer and provide code in the following"
+                     " format: \n\n```bash\n(required dependencies)\n```\n"
+                     "\n```python\n(Python code)\n```\n\nProvide instructions "
+                     "on how to run the code in the response.", role="system")
 
     output_saved = False
 

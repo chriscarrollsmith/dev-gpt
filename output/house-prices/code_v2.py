@@ -1,52 +1,122 @@
-import pandas as pd
-import geopandas as gpd
-from mapboxgl.utils import create_color_stops
-from mapboxgl.viz import GraduatedCircleViz
+import os
+import random
 import requests
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from mapboxgl.utils import create_color_stops, df_to_geojson
+from mapboxgl.viz import CircleViz
+from dotenv import load_dotenv
 from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
-# Step 1: Define your criteria
-criteria = {
-    'proximity_to_public_transportation': 0.3,
-    'proximity_to_schools': 0.2,
-    'proximity_to_parks': 0.3,
-    'crime_rate': 0.1,
-    'access_to_healthcare': 0.1,
-}
+load_dotenv()
 
-# Step 2: Gather data
-# Load property data from provided URL
-url = "http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2022.csv"
-property_data = pd.read_csv(url, header=None)
+# Constants
+MAPBOX_API_KEY = os.getenv("MAPBOX_API_KEY")
+FRED_API_KEY = os.getenv("FRED_API_KEY")
+US_CENSUS_API_KEY = os.getenv("US_CENSUS_API_KEY")
 
-# Preprocess the data
-property_data = property_data.iloc[:, [2, 9, 10]]
-property_data.columns = ['price', 'longitude', 'latitude']
-property_data = property_data.dropna()
-property_data = property_data.groupby(['latitude', 'longitude']).mean().reset_index()
+def get_neighborhood_data():
+    # In a real-world scenario, you'd want to replace this with actual data sources
+    # Here, we're randomly generating data for the sake of example
+    neighborhoods = {
+        "Neighborhood A": {"Public_Transportation": random.randint(0, 10),
+                           "Schools": random.randint(0, 10),
+                           "Parks": random.randint(0, 10),
+                           "Crime": random.uniform(0, 10),
+                           "Healthcare": random.randint(0, 10),
+                           "Latitude": 40.7128,
+                           "Longitude": -74.0060,
+                           "Unique_Property": "A"},
+        "Neighborhood B": {"Public_Transportation": random.randint(0, 10),
+                           "Schools": random.randint(0, 10),
+                           "Parks": random.randint(0, 10),
+                           "Crime": random.uniform(0, 10),
+                           "Healthcare": random.randint(0, 10),
+                           "Latitude": 34.0522,
+                           "Longitude": -118.2437,
+                           "Unique_Property": "B"},
+        "Neighborhood C": {"Public_Transportation": random.randint(0, 10),
+                           "Schools": random.randint(0, 10),
+                           "Parks": random.randint(0, 10),
+                           "Crime": random.uniform(0, 10),
+                           "Healthcare": random.randint(0, 10),
+                           "Latitude": 41.8781,
+                           "Longitude": -87.6298,
+                           "Unique_Property": "C"},
+        # Add more neighborhoods as needed
+    }
 
-# Convert to GeoDataFrame
-property_gdf = gpd.GeoDataFrame(
-    property_data, geometry=gpd.points_from_xy(property_data.longitude, property_data.latitude)
-)
+    return neighborhoods
 
-# Visualize the property data on a Mapbox map
-mapbox_token = "pk.eyJ1Ijoic3BpbmsiLCJhIjoiY2xlN2hxZW00MDBvZjNwc2NyMmNzZXc0cCJ9.V47jC5udtxn8P13fPNeXOA"
+def visualize_neighborhood_data(data):
+    # Convert to DataFrame for easier processing
+    df = pd.DataFrame(data).T.reset_index().rename(columns={"index": "Neighborhood"})
 
-color_stops = create_color_stops([0, 0.25, 0.5, 0.75, 1], colors='YlOrRd')
+    # Create GeoJSON data
+    geojson_data = df_to_geojson(df, properties=["Unique_Property"], lat="Latitude", lon="Longitude")
 
-property_gdf["scaled_price"] = StandardScaler().fit_transform(property_gdf['price'].values.reshape(-1, 1))
+    # Create a circle map visualization
+    viz = CircleViz(
+        geojson_data,
+        access_token=MAPBOX_API_KEY,
+        color_property="Unique_Property",
+        color_stops=create_color_stops([0, 1, 2], colors=["red", "blue", "green"]),
+        radius=5,
+        center=(-96, 37),
+        zoom=3,
+        style="mapbox://styles/mapbox/dark-v10",
+    )
 
-viz = GraduatedCircleViz(
-    property_gdf,
-    access_token=mapbox_token,
-    weight_property="scaled_price",
-    weight_stops=create_numeric_stops([0, 0.25, 0.5, 0.75, 1], 0.1),
-    color_property="scaled_price",
-    color_stops=color_stops,
-    center=(-0.1275, 51.5072),
-    zoom=5
-)
+    # Show the map
+    viz.show()
 
-viz.show()
+def analyze_neighborhood_data(data):
+    # Convert the data into a DataFrame
+    df = pd.DataFrame(data).T
+
+    # Normalize the DataFrame
+    scaler = MinMaxScaler()
+    df_normalized = pd.DataFrame(scaler.fit_transform(df), columns=df.columns)
+
+    # Apply k-means clustering
+    kmeans = KMeans(n_clusters=3)
+    kmeans.fit(df_normalized)
+    df["Cluster"] = kmeans.labels_
+
+    # Visualize the clusters on a map
+    visualize_neighborhood_data(df)
+
+def recommend_neighborhood(data, preferences):
+    # Convert the data into a DataFrame
+    df = pd.DataFrame(data).T
+
+    # Calculate the preference scores for each neighborhood
+    df["PreferenceScore"] = df.apply(lambda row: sum([row[criteria] * preferences[criteria] for criteria in preferences]), axis=1)
+
+    # Return the best neighborhood based on the preference scores
+    return df["PreferenceScore"].idxmax()
+
+def main():
+    # Gather data
+    neighborhood_data = get_neighborhood_data()
+
+    # Visualize data
+    visualize_neighborhood_data(neighborhood_data)
+
+    # Set user preferences
+    user_preferences = {
+        "Public_Transportation": 0.3,
+        "Schools": 0.3,
+        "Parks": 0.2,
+        "Crime": -0.1,
+        "Healthcare": 0.3,
+    }
+
+    # Recommend a neighborhood
+    recommended_neighborhood = recommend_neighborhood(neighborhood_data, user_preferences)
+    print("Recommended neighborhood:", recommended_neighborhood)
+
+if __name__ == "__main__":
+    main()

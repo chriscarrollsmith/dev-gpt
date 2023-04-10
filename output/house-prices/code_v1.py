@@ -1,75 +1,116 @@
-import pandas as pd
-import geopandas as gpd
-from mapboxgl.utils import create_color_stops
-from mapboxgl.viz import GraduatedCircleViz
+import os
+import random
 import requests
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from mapboxgl.utils import create_color_stops, df_to_geojson
+from mapboxgl.viz import CircleViz
+from dotenv import load_dotenv
 from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
-# Step 1: Define your criteria
-criteria = {
-    'proximity_to_public_transportation': 0.3,
-    'proximity_to_schools': 0.2,
-    'proximity_to_parks': 0.3,
-    'crime_rate': 0.1,
-    'access_to_healthcare': 0.1,
-}
+load_dotenv()
 
-# Step 2: Gather data
-# Dummy data (use real data from the sources mentioned above)
-data = {
-    'name': ['locationA', 'locationB'],
-    'latitude': [51.507222, 51.523611],
-    'longitude': [-0.127500, -0.156944],
-    'proximity_to_public_transportation': [0.8, 0.7],
-    'proximity_to_schools': [0.9, 0.6],
-    'proximity_to_parks': [0.7, 0.4],
-    'crime_rate': [0.2, 0.5],
-    'access_to_healthcare': [0.5, 0.6],
-}
+# Constants
+MAPBOX_API_KEY = os.getenv("MAPBOX_API_KEY")
+FRED_API_KEY = os.getenv("FRED_API_KEY")
+US_CENSUS_API_KEY = os.getenv("US_CENSUS_API_KEY")
 
-df = pd.DataFrame(data)
+def get_neighborhood_data():
+    # In a real-world scenario, you'd want to replace this with actual data sources
+    # Here, we're randomly generating data for the sake of example
+    neighborhoods = {
+        "Neighborhood A": {"Public_Transportation": random.randint(0, 10),
+                           "Schools": random.randint(0, 10),
+                           "Parks": random.randint(0, 10),
+                           "Crime": random.uniform(0, 10),
+                           "Healthcare": random.randint(0, 10)},
+        "Neighborhood B": {"Public_Transportation": random.randint(0, 10),
+                           "Schools": random.randint(0, 10),
+                           "Parks": random.randint(0, 10),
+                           "Crime": random.uniform(0, 10),
+                           "Healthcare": random.randint(0, 10)},
+        "Neighborhood C": {"Public_Transportation": random.randint(0, 10),
+                           "Schools": random.randint(0, 10),
+                           "Parks": random.randint(0, 10),
+                           "Crime": random.uniform(0, 10),
+                           "Healthcare": random.randint(0, 10)},
+        # Add more neighborhoods as needed
+    }
 
-# Convert to GeoDataFrame
-gdf = gpd.GeoDataFrame(
-    df, geometry=gpd.points_from_xy(df.longitude, df.latitude)
-)
+    return neighborhoods
 
-# Step 3: Visualize the data
-mapbox_token = 'your_mapbox_access_token'
-gdf["scaled_crime_rate"] = 1 - StandardScaler().fit_transform(df["crime_rate"].values.reshape(-1, 1))
+def visualize_neighborhood_data(data):
+    # Convert to DataFrame for easier processing
+    df = pd.DataFrame(data).T.reset_index().rename(columns={"index": "Neighborhood"})
 
-color_stops = create_color_stops([0.0, 0.25, 0.5, 0.75, 1.0], colors='YlOrRd')
+    # Create GeoJSON data
+    geojson_data = df_to_geojson(df, properties="", lat="", lon="")
 
-viz = GraduatedCircleViz(
-    gdf,
-    access_token=mapbox_token,
-    weight_property="scaled_crime_rate",
-    weight_stops=create_numeric_stops([0.0, 0.25, 0.5, 0.75, 1.0], 0.1),
-    color_property="scaled_crime_rate",
-    color_stops=color_stops,
-    center=(-0.1275, 51.5072),
-    zoom=9
-)
+    # Create a circle map visualization
+    viz = CircleViz(
+        geojson_data,
+        access_token=MAPBOX_API_KEY,
+        color_property="",
+        color_stops=create_color_stops(),
+        radius=5,
+        center=(-0, 360),
+        zoom=4,
+        style="mapbox://styles/mapbox/dark-v10",
+    )
 
-viz.show()
+    # Show the map
+    viz.show()
 
-# Step 4: Analyze data
-X = gdf.drop(['name', 'latitude', 'longitude', 'geometry'], axis=1)
+def analyze_neighborhood_data(data):
+    # Convert the data into a DataFrame
+    df = pd.DataFrame(data).T
 
-kmeans = KMeans(n_clusters=2, random_state=0).fit(X)
-gdf['cluster'] = kmeans.labels_
+    # Normalize the DataFrame
+    scaler = MinMaxScaler()
+    df_normalized = pd.DataFrame(scaler.fit_transform(df), columns=df.columns)
 
-# Step 5: Build a basic recommendation system
-def calc_score(row, weights):
-    score = 0
-    for k, w in weights.items():
-        score += row[k] * w
-    return score
+    # Apply k-means clustering
+    kmeans = KMeans(n_clusters=3)
+    kmeans.fit(df_normalized)
+    df["Cluster"] = kmeans.labels_
 
-gdf['score'] = gdf.apply(calc_score, axis=1, args=(criteria,))
-gdf = gdf.sort_values('score', ascending=False)
-top_recommendations = gdf.head(3)
+    # Visualize the clusters on a map
+    visualize_neighborhood_data(df)
 
-print("Top 3 recommended locations:")
-print(top_recommendations)
+def recommend_neighborhood(data, preferences):
+    # Convert the data into a DataFrame
+    df = pd.DataFrame(data).T
+
+    # Calculate the preference scores for each neighborhood
+    df["PreferenceScore"] = df.apply(lambda row: sum([row[criteria] * preferences[criteria] for criteria in preferences]), axis=1)
+
+    # Return the best neighborhood based on the preference scores
+    return df["PreferenceScore"].idxmax()
+
+def main():
+    # Gather data
+    neighborhood_data = get_neighborhood_data()
+
+    # Visualize data
+    visualize_neighborhood_data(neighborhood_data)
+
+    # Analyze data with clustering
+    analyze_neighborhood_data(neighborhood_data)
+
+    # Set user preferences
+    user_preferences = {
+        "Public_Transportation": 0.3,
+        "Schools": 0.3,
+        "Parks": 0.2,
+        "Crime": -0.1,
+        "Healthcare": 0.3,
+    }
+
+    # Recommend a neighborhood
+    recommended_neighborhood = recommend_neighborhood(neighborhood_data, user_preferences)
+    print("Recommended neighborhood:", recommended_neighborhood)
+
+if __name__ == "__main__":
+    main()
